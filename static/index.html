@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Crowd Chess</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #e94560;
+        }
+        #board {
+            font-family: monospace;
+            font-size: 22px;
+            line-height: 1.3;
+            margin: 20px auto;
+            white-space: pre;
+            display: inline-block;
+            text-align: left;
+            background-color: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        #info {
+            margin: 10px 0;
+            font-size: 20px;
+            font-weight: bold;
+            color: #f5f5f5;
+        }
+        #timer {
+            font-size: 28px;
+            font-weight: bold;
+            color: #e94560;
+            margin: 10px 0;
+        }
+        #vote-count {
+            font-size: 16px;
+            color: #aaa;
+            margin: 5px 0;
+        }
+        #moves-container {
+            margin: 15px 0;
+        }
+        #moves {
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #16213e;
+        }
+        .move-btn {
+            display: inline-block;
+            margin: 3px;
+            padding: 6px 12px;
+            cursor: pointer;
+            background-color: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #e94560;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .move-btn:hover {
+            background-color: #e94560;
+            color: #fff;
+        }
+        .move-btn:disabled {
+            background-color: #333;
+            border-color: #555;
+            color: #777;
+            cursor: not-allowed;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #e94560;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #c73e54;
+        }
+        #result {
+            margin: 10px 0;
+            font-size: 16px;
+            min-height: 24px;
+        }
+        #tally {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #aaa;
+        }
+        .your-vote {
+            background-color: #e94560 !important;
+            color: white !important;
+            border-color: #fff !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>♔ Crowd Chess ♔</h1>
+
+    <div id="info">Loading game...</div>
+    <div id="timer">--</div>
+    <div id="vote-count"></div>
+    <div id="board"></div>
+
+    <div id="moves-container">
+        <h3>Vote for a move:</h3>
+        <div id="tally"></div>
+        <div id="moves"></div>
+    </div>
+
+    <div id="result"></div>
+    <button onclick="resetGame()">Reset Game</button>
+
+    <script>
+        let currentGame = null;
+        let votingStatus = null;
+        let myVote = null;           // The move I voted for
+        let checkWinnerInterval = null;
+
+        async function loadGame() {
+            const response = await fetch('/game');
+            const data = await response.json();
+            currentGame = data.game;
+            votingStatus = data.voting;
+            displayGame();
+            startWinnerChecker();
+        }
+
+        function displayGame() {
+            if (!currentGame) return;
+
+            // Update info text
+            let infoText = 'Turn: ' + currentGame.turn;
+            if (currentGame.is_checkmate) {
+                infoText += ' — CHECKMATE! ' + 
+                    (currentGame.turn === 'white' ? 'Black' : 'White') + ' wins!';
+            } else if (currentGame.is_check) {
+                infoText += ' — Check!';
+            } else if (currentGame.is_game_over) {
+                infoText += ' — Game Over (draw)';
+            }
+            document.getElementById('info').textContent = infoText;
+
+            // Update board
+            document.getElementById('board').textContent = fenToText(currentGame.fen);
+
+            // Update timer
+            if (votingStatus) {
+                document.getElementById('timer').textContent = 
+                    '⏱ ' + votingStatus.time_remaining + 's';
+                document.getElementById('vote-count').textContent = 
+                    votingStatus.votes_so_far + ' vote(s) cast';
+            }
+
+            // Update tally
+            if (votingStatus && votingStatus.current_tally) {
+                let tallyText = 'Current tally: ';
+                const tally = votingStatus.current_tally;
+                const entries = Object.entries(tally);
+                if (entries.length === 0) {
+                    tallyText += 'no votes yet';
+                } else {
+                    // Sort by vote count, highest first
+                    entries.sort((a, b) => b[1] - a[1]);
+                    tallyText += entries.map(([move, count]) => 
+                        move + ' (' + count + ')'
+                    ).join(', ');
+                }
+                document.getElementById('tally').textContent = tallyText;
+            }
+
+            // Show move buttons
+            const movesDiv = document.getElementById('moves');
+            const votingEnded = votingStatus && votingStatus.voting_ended;
+            const gameOver = currentGame.is_game_over;
+
+            if (!gameOver && !votingEnded && currentGame.legal_moves) {
+                let buttonsHtml = '';
+                for (const move of currentGame.legal_moves) {
+                    const isMyVote = (myVote === move);
+                    const className = isMyVote ? 'move-btn your-vote' : 'move-btn';
+                    buttonsHtml += 
+                        `<button class="${className}" onclick="voteMove('${move}')">${move}</button>`;
+                }
+                movesDiv.innerHTML = buttonsHtml;
+            } else if (votingEnded) {
+                movesDiv.innerHTML = '<em>Voting ended — waiting for results...</em>';
+            } else {
+                movesDiv.innerHTML = '<em>Game over</em>';
+            }
+        }
+
+        function fenToText(fen) {
+            const pieceSymbols = {
+                'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
+                'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'
+            };
+            const boardPart = fen.split(' ')[0];
+            const rows = boardPart.split('/');
+            let text = '  a b c d e f g h\n';
+            let rowNum = 8;
+            for (const row of rows) {
+                text += rowNum + ' ';
+                for (const char of row) {
+                    if (char >= '1' && char <= '8') {
+                        text += '· '.repeat(parseInt(char));
+                    } else {
+                        text += (pieceSymbols[char] || char) + ' ';
+                    }
+                }
+                text += rowNum + '\n';
+                rowNum--;
+            }
+            text += '  a b c d e f g h';
+            return text;
+        }
+
+        async function voteMove(move) {
+            const response = await fetch('/vote?move=' + move, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                myVote = move;
+                votingStatus = data.voting;
+                document.getElementById('result').textContent = 
+                    '✓ You voted for ' + move;
+                displayGame();
+            } else {
+                document.getElementById('result').textContent = 
+                    '✗ ' + data.message;
+            }
+        }
+
+        function startWinnerChecker() {
+            // Clear any existing interval
+            if (checkWinnerInterval) {
+                clearInterval(checkWinnerInterval);
+            }
+
+            // Check every second if voting is over
+            checkWinnerInterval = setInterval(async () => {
+                // If we already know voting ended, check for winner
+                if (votingStatus && votingStatus.voting_ended) {
+                    await checkWinner();
+                    return;
+                }
+
+                // Otherwise, refresh voting status to update the timer
+                const response = await fetch('/voting-status');
+                votingStatus = await response.json();
+                displayGame();
+            }, 1000);
+        }
+
+        async function checkWinner() {
+            const response = await fetch('/check-winner', {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (!data.voting_active && data.winner) {
+                // Voting ended, we have a result
+                const w = data.winner;
+                let resultText = '🏆 Winning move: ' + w.winner + 
+                    ' with ' + w.total_votes + ' total vote(s)';
+                if (w.tied) {
+                    resultText += ' (tiebreak — randomly selected)';
+                }
+                if (w.winner === null) {
+                    resultText = '⚠ No votes were cast — round skipped';
+                }
+                document.getElementById('result').textContent = resultText;
+
+                // Update game state and reset for next round
+                currentGame = data.game;
+                votingStatus = data.voting;
+                myVote = null;
+                displayGame();
+            }
+        }
+
+        async function resetGame() {
+            const response = await fetch('/reset', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            currentGame = data.game;
+            votingStatus = data.voting;
+            myVote = null;
+            displayGame();
+            document.getElementById('result').textContent = 'Game reset';
+        }
+
+        // Load everything when the page opens
+        loadGame();
+    </script>
+</body>
+</html>
