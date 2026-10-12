@@ -4,6 +4,7 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 from game import ChessGame
 from voting import VoteManager
 import os
@@ -11,6 +12,9 @@ import time
 import threading
 
 app = FastAPI()
+
+# Trust proxy headers (Railway, Render, Fly.io all use reverse proxies).
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -24,7 +28,7 @@ vote_manager = VoteManager(voting_seconds=15, min_seconds=5)
 
 _round_phase = "voting"
 _game_over_at = 0.0
-GAME_OVER_DELAY = 8  # seconds to show final position before auto-reset
+GAME_OVER_DELAY = 8
 round_lock = threading.Lock()
 
 # ── Viewer tracking ────────────────────────────────
@@ -33,6 +37,18 @@ VIEWER_WINDOW = 15
 
 # ── Surrender votes ────────────────────────────────
 _surrender_votes = set()
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Get the real client IP, accounting for reverse proxies.
+    X-Forwarded-For looks like: client, proxy1, proxy2
+    The first entry is the original client.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host
 
 
 def _touch_viewer(ip):
@@ -68,7 +84,7 @@ def _maybe_finish_game_over():
 
 
 def get_voter_id(request: Request) -> str:
-    return request.client.host
+    return get_client_ip(request)
 
 
 def voting_status_with_san():
@@ -86,7 +102,7 @@ def voting_status_with_san():
 
     if _round_phase == "game_over":
         remaining = max(0, GAME_OVER_DELAY - (time.time() - _game_over_at))
-        status["game_over_seconds"] = int(remaining + 0.999)  # ceil
+        status["game_over_seconds"] = int(remaining + 0.999)
     else:
         status["game_over_seconds"] = None
 
@@ -103,7 +119,7 @@ def home():
 
 @app.get("/game")
 def get_game(request: Request):
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
     return {
         "game": game.get_state(),
         "voting": voting_status_with_san()
@@ -112,7 +128,7 @@ def get_game(request: Request):
 
 @app.post("/vote")
 def submit_vote(move: str, request: Request):
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
     vote_manager.set_viewer_count(_viewer_count())
 
     if _round_phase != "voting":
@@ -150,14 +166,14 @@ def submit_vote(move: str, request: Request):
 
 @app.get("/voting-status")
 def voting_status(request: Request):
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
     return voting_status_with_san()
 
 
 @app.post("/check-winner")
 def check_winner(request: Request):
     global _round_phase
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
     vote_manager.set_viewer_count(_viewer_count())
 
     with round_lock:
@@ -202,10 +218,11 @@ def check_winner(request: Request):
             "voting": voting_status_with_san()
         }
 
+
 @app.post("/engine-move")
 def engine_move(request: Request):
     global _round_phase, _game_over_at
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
 
     with round_lock:
         if _round_phase != "engine_thinking":
@@ -219,7 +236,6 @@ def engine_move(request: Request):
 
         vote_manager.reset()
 
-        # If the game is now over (checkmate, stalemate, etc.), pause before reset.
         if game.get_state()["is_game_over"]:
             _round_phase = "game_over"
             _game_over_at = time.time()
@@ -238,9 +254,9 @@ def engine_move(request: Request):
 @app.post("/surrender")
 def surrender(request: Request, active: bool = True):
     global _round_phase
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
 
-    ip = request.client.host
+    ip = get_client_ip(request)
     if active:
         _surrender_votes.add(ip)
     else:
@@ -274,7 +290,7 @@ def surrender(request: Request, active: bool = True):
 @app.post("/reset")
 def reset_game(request: Request):
     global _round_phase
-    _touch_viewer(request.client.host)
+    _touch_viewer(get_client_ip(request))
 
     with round_lock:
         game.reset()
