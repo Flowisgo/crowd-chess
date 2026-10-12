@@ -4,7 +4,6 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 from game import ChessGame
 from voting import VoteManager
 import os
@@ -12,9 +11,6 @@ import time
 import threading
 
 app = FastAPI()
-
-# Trust proxy headers (Railway, Render, Fly.io all use reverse proxies).
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
