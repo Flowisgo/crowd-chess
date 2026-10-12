@@ -4,311 +4,1139 @@
     <meta charset="UTF-8">
     <title>Crowd Chess</title>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #fafaf7;
+            --surface: #ffffff;
+            --border: #d8d8d0;
+            --border-strong: #b8b8b0;
+            --text: #1a1a1a;
+            --text-dim: #6b6b66;
+            --text-faint: #9a9a95;
+            --accent: #6b9b3f;
+            --accent-dark: #4d7629;
+            --danger: #b8382c;
+            --rule: #e8e8e0;
+
+            --square-light: #ebecd0;
+            --square-dark: #739552;
+            --square-light-hover: #f1f2db;
+            --square-dark-hover: #82a45c;
+            --board-frame: #4a3f2e;
+        }
+
+        [data-theme="dark"] {
+            --bg: #16161a;
+            --surface: #1e1e22;
+            --border: #32323a;
+            --border-strong: #4a4a52;
+            --text: #e6e6e0;
+            --text-dim: #9a9a95;
+            --text-faint: #6b6b66;
+            --accent: #7fb049;
+            --accent-dark: #5a8433;
+            --danger: #d95a4a;
+            --rule: #2a2a30;
+
+            --square-light: #9a9a8a;
+            --square-dark: #56703c;
+            --square-light-hover: #aaaa9a;
+            --square-dark-hover: #667f4a;
+            --board-frame: #0e0e10;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 700px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-            background-color: #1a1a2e;
-            color: #e0e0e0;
-        }
-        h1 {
-            color: #e94560;
-        }
-        #board {
-            font-family: monospace;
-            font-size: 22px;
-            line-height: 1.3;
-            margin: 20px auto;
-            white-space: pre;
-            display: inline-block;
-            text-align: left;
-            background-color: #16213e;
-            padding: 15px;
-            border-radius: 8px;
-        }
-        #info {
-            margin: 10px 0;
-            font-size: 20px;
-            font-weight: bold;
-            color: #f5f5f5;
-        }
-        #timer {
-            font-size: 28px;
-            font-weight: bold;
-            color: #e94560;
-            margin: 10px 0;
-        }
-        #vote-count {
-            font-size: 16px;
-            color: #aaa;
-            margin: 5px 0;
-        }
-        #moves-container {
-            margin: 15px 0;
-        }
-        #moves {
-            text-align: left;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #333;
-            padding: 10px;
-            border-radius: 4px;
-            background-color: #16213e;
-        }
-        .move-btn {
-            display: inline-block;
-            margin: 3px;
-            padding: 6px 12px;
-            cursor: pointer;
-            background-color: #0f3460;
-            color: #e0e0e0;
-            border: 1px solid #e94560;
-            border-radius: 4px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 40px 20px 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background 0.2s, color 0.2s;
             font-size: 14px;
-            transition: background-color 0.2s;
         }
-        .move-btn:hover {
-            background-color: #e94560;
-            color: #fff;
-        }
-        .move-btn:disabled {
-            background-color: #333;
-            border-color: #555;
-            color: #777;
-            cursor: not-allowed;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #e94560;
-            color: white;
+
+        #appearance-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: transparent;
             border: none;
-            border-radius: 4px;
-            margin: 5px;
+            color: var(--text-dim);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            padding: 6px 10px;
+            font-family: inherit;
+            text-transform: uppercase;
+            border-bottom: 1px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
         }
-        button:hover {
-            background-color: #c73e54;
+
+        #appearance-btn:hover {
+            color: var(--text);
+            border-bottom-color: var(--border-strong);
         }
+
+        #theme-panel {
+            position: fixed;
+            top: 52px;
+            right: 20px;
+            width: 280px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 18px;
+            z-index: 99;
+            display: none;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        #theme-panel.open { display: block; }
+
+        .theme-section { margin-bottom: 16px; }
+        .theme-section:last-child { margin-bottom: 0; }
+
+        .theme-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-faint);
+            margin-bottom: 8px;
+        }
+
+        .mode-toggle { display: flex; gap: 0; border: 1px solid var(--border); }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-dim);
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .mode-btn:not(:last-child) { border-right: 1px solid var(--border); }
+        .mode-btn.active {
+            background: var(--text);
+            color: var(--bg);
+        }
+
+        .board-swatches {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+
+        .swatch {
+            aspect-ratio: 1;
+            cursor: pointer;
+            border: 2px solid transparent;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+
+        .swatch.active { border-color: var(--text); }
+        .swatch-cell { width: 100%; height: 100%; }
+
+        header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        header h1 {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 34px;
+            font-weight: 400;
+            letter-spacing: -0.5px;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .subtitle-carousel {
+            height: 18px;
+            margin-top: 10px;
+        }
+
+        .subtitle-text {
+            color: var(--text-faint);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            line-height: 18px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: auto 280px;
+            gap: 32px;
+            align-items: start;
+        }
+
+        @media (max-width: 860px) {
+            .layout { grid-template-columns: 1fr; }
+        }
+
+        .board-wrapper {
+            display: grid;
+            grid-template-columns: 22px 480px;
+            grid-template-rows: 480px 22px;
+        }
+
+        .rank-labels {
+            display: grid;
+            grid-template-rows: repeat(8, 60px);
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-faint);
+            font-family: ui-monospace, monospace;
+        }
+
+        .file-labels {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-faint);
+            grid-column: 2;
+            font-family: ui-monospace, monospace;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            border: 6px solid var(--board-frame);
+        }
+
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .square.light { background: var(--square-light); }
+        .square.dark  { background: var(--square-dark); }
+
+        .square.light:hover { background: var(--square-light-hover); }
+        .square.dark:hover  { background: var(--square-dark-hover); }
+
+        .square.selected::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 220, 50, 0.55);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .square.legal-target::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.22);
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .square.legal-target.has-piece::after {
+            width: 54px;
+            height: 54px;
+            background: transparent;
+            border: 5px solid rgba(0, 0, 0, 0.22);
+            border-radius: 50%;
+        }
+
+        .piece {
+            width: 54px;
+            height: 54px;
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .panel-section {
+            padding: 16px 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .panel-section:first-child { padding-top: 0; }
+        .panel-section:last-child { padding-bottom: 0; border-bottom: none; }
+
+        .panel-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-faint);
+            margin-bottom: 10px;
+        }
+
+        .status-line {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 22px;
+            font-weight: 400;
+            color: var(--text);
+            line-height: 1.2;
+        }
+
+        .status-line.check { color: #b8860b; }
+        [data-theme="dark"] .status-line.check { color: #e0b53c; }
+        .status-line.checkmate { color: var(--danger); }
+
+        .meta-row {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-dim);
+            align-items: center;
+        }
+
+        .meta-row .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .meta-row .meta-item strong {
+            color: var(--text);
+            font-weight: 600;
+            font-family: ui-monospace, monospace;
+            font-size: 13px;
+        }
+
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: inline-block;
+        }
+
+        .live-dot.pulse {
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .timer-block { text-align: center; min-height: 96px; }
+
+        #timer {
+            font-family: ui-monospace, monospace;
+            font-size: 52px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1;
+            letter-spacing: -2px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        #timer.urgent { color: var(--danger); }
+
+        .timer-bar {
+            height: 2px;
+            background: var(--rule);
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .timer-bar-fill {
+            height: 100%;
+            background: var(--text-dim);
+            transition: width 1s linear;
+        }
+
+        .timer-bar-fill.urgent { background: var(--danger); }
+
+        #thinking-indicator {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            padding: 4px 0;
+        }
+
+        #thinking-indicator.visible { display: flex; }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid var(--rule);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .thinking-text {
+            font-size: 11px;
+            color: var(--text-dim);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 500;
+            animation: pulse-dot 1.6s ease-in-out infinite;
+        }
+
+        /* Game over block */
+        #game-over-indicator {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+
+        #game-over-indicator.visible { display: flex; }
+
+        .game-over-text {
+            font-size: 11px;
+            color: var(--danger);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .game-over-countdown {
+            font-family: ui-monospace, monospace;
+            font-size: 36px;
+            font-weight: 500;
+            color: var(--text);
+            line-height: 1;
+            letter-spacing: -1px;
+        }
+
+        .tally {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 240px;
+            overflow-y: auto;
+            font-family: ui-monospace, monospace;
+            font-size: 12px;
+        }
+
+        .tally-row {
+            display: grid;
+            grid-template-columns: 48px 1fr 22px;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tally-row.mine .tally-move {
+            color: var(--accent-dark);
+            font-weight: 600;
+        }
+        [data-theme="dark"] .tally-row.mine .tally-move {
+            color: var(--accent);
+        }
+
+        .tally-move {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .tally-bar {
+            height: 4px;
+            background: var(--rule);
+            overflow: hidden;
+        }
+
+        .tally-bar-fill {
+            height: 100%;
+            background: var(--text-dim);
+            transition: width 0.3s ease;
+        }
+
+        .tally-row.mine .tally-bar-fill {
+            background: var(--accent);
+        }
+
+        .tally-count {
+            text-align: right;
+            color: var(--text-faint);
+        }
+
+        .empty-tally {
+            color: var(--text-faint);
+            font-size: 12px;
+            font-style: italic;
+            font-family: inherit;
+        }
+
         #result {
-            margin: 10px 0;
-            font-size: 16px;
-            min-height: 24px;
+            font-size: 12px;
+            color: var(--text-dim);
+            line-height: 1.5;
+            min-height: 18px;
+            font-family: ui-monospace, monospace;
         }
-        #tally {
-            margin: 10px 0;
-            font-size: 14px;
-            color: #aaa;
+
+        #result.win { color: var(--accent-dark); }
+        [data-theme="dark"] #result.win { color: var(--accent); }
+        #result.error { color: var(--danger); }
+
+        .surrender-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
-        .your-vote {
-            background-color: #e94560 !important;
-            color: white !important;
-            border-color: #fff !important;
+
+        button.surrender {
+            padding: 5px 12px;
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-faint);
+            border: 1px solid var(--rule);
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        button.surrender:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        button.surrender.voted {
+            color: var(--danger);
+            border-color: var(--danger);
+            background: rgba(184, 56, 44, 0.06);
+        }
+
+        .surrender-progress {
+            font-size: 11px;
+            color: var(--text-faint);
+            font-family: ui-monospace, monospace;
+            letter-spacing: 0.5px;
         }
     </style>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
-    <h1>♔ Crowd Chess ♔</h1>
-
-    <div id="info">Loading game...</div>
-    <div id="timer">--</div>
-    <div id="vote-count"></div>
-    <div id="board"></div>
-
-    <div id="moves-container">
-        <h3>Vote for a move:</h3>
-        <div id="tally"></div>
-        <div id="moves"></div>
+    <button id="appearance-btn" onclick="toggleThemePanel()">Appearance</button>
+    <div id="theme-panel">
+        <div class="theme-section">
+            <div class="theme-label">Mode</div>
+            <div class="mode-toggle">
+                <button class="mode-btn" data-mode="light" onclick="applyMode('light')">Light</button>
+                <button class="mode-btn" data-mode="dark" onclick="applyMode('dark')">Dark</button>
+            </div>
+        </div>
+        <div class="theme-section">
+            <div class="theme-label">Board</div>
+            <div class="board-swatches" id="board-swatches"></div>
+        </div>
     </div>
 
-    <div id="result"></div>
-    <button onclick="resetGame()">Reset Game</button>
+    <header>
+        <h1>Crowd Chess</h1>
+        <div class="subtitle-carousel">
+            <div class="subtitle-text" id="subtitle"></div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <div class="board-wrapper">
+            <div class="rank-labels">
+                <div>8</div><div>7</div><div>6</div><div>5</div>
+                <div>4</div><div>3</div><div>2</div><div>1</div>
+            </div>
+            <div id="board"></div>
+            <div class="file-labels">
+                <div>a</div><div>b</div><div>c</div><div>d</div>
+                <div>e</div><div>f</div><div>g</div><div>h</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-section">
+                <div class="status-line" id="info">Loading...</div>
+            </div>
+
+            <div class="panel-section">
+                <div class="meta-row">
+                    <div class="meta-item">
+                        <span class="live-dot pulse"></span>
+                        <strong id="viewer-count">1</strong>
+                        <span id="viewer-label">player</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong id="vote-count">0</strong>
+                        <span id="vote-label">votes</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section timer-block">
+                <div class="panel-label" id="timer-label">Voting closes</div>
+                <div id="timer">--</div>
+                <div id="thinking-indicator">
+                    <div class="spinner"></div>
+                    <div class="thinking-text">Stockfish is thinking</div>
+                </div>
+                <div id="game-over-indicator">
+                    <div class="game-over-text">Game over</div>
+                    <div class="game-over-countdown" id="game-over-countdown">8</div>
+                    <div class="game-over-text">New game starting</div>
+                </div>
+                <div class="timer-bar">
+                    <div class="timer-bar-fill" id="timer-bar" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-label">Tally</div>
+                <div class="tally" id="tally"></div>
+            </div>
+
+            <div class="panel-section">
+                <div id="result">Click a piece, then click its destination to vote.</div>
+            </div>
+
+            <div class="panel-section">
+                <div class="surrender-row">
+                    <button id="surrender-btn" class="surrender" onclick="toggleSurrender()">Surrender</button>
+                    <span class="surrender-progress" id="surrender-progress"></span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
+        // ── Subtitle ───────────────────────────────
+        const QUOTES = [
+            "You vs. The Machine",
+            "Avenge Deep Blue",
+            "Don't cheat",
+            "Democracy, but for chess",
+            "The crowd is never wrong",
+            "Kasparov would be proud",
+            "Better than a coin flip",
+            "One move at a time",
+            "Groupthink, weaponized",
+            "We are all Magnus now",
+            "No engine assistance required",
+            "Castle early, castle often"
+        ];
+
+        function pickRandomQuote() {
+            const el = document.getElementById('subtitle');
+            el.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+        }
+
+        // ── Theme ──────────────────────────────────
+        const BOARD_THEMES = {
+            green:  { light: '#ebecd0', dark: '#739552', lightHover: '#f1f2db', darkHover: '#82a45c' },
+            brown:  { light: '#f0d9b5', dark: '#b58863', lightHover: '#f5e2c5', darkHover: '#c39a76' },
+            blue:   { light: '#dee3e6', dark: '#8ca2ad', lightHover: '#e7ecef', darkHover: '#9bb0ba' },
+            gray:   { light: '#ebebeb', dark: '#7d8796', lightHover: '#f2f2f2', darkHover: '#8b95a3' },
+            purple: { light: '#e8e0f0', dark: '#8472a3', lightHover: '#efe9f5', darkHover: '#9584b1' },
+            wood:   { light: '#f5e6c8', dark: '#b8845a', lightHover: '#f8ecda', darkHover: '#c79570' }
+        };
+
+        const BOARD_FRAMES = {
+            light: { green: '#4a3f2e', brown: '#4a3324', blue: '#2e3a44', gray: '#3a3a40', purple: '#3a2e44', wood: '#3e2814' },
+            dark:  { green: '#0e0e10', brown: '#140e08', blue: '#0a1014', gray: '#0e0e10', purple: '#100a14', wood: '#140c04' }
+        };
+
+        let boardTheme = localStorage.getItem('boardTheme') || 'green';
+        let mode = localStorage.getItem('mode') || 'light';
+
+        function applyMode(m) {
+            mode = m;
+            document.documentElement.setAttribute('data-theme', m);
+            localStorage.setItem('mode', m);
+            document.querySelectorAll('.mode-btn').forEach(el => {
+                el.classList.toggle('active', el.dataset.mode === m);
+            });
+            applyBoardFrame();
+        }
+
+        function applyBoardFrame() {
+            const frame = BOARD_FRAMES[mode][boardTheme] || BOARD_FRAMES[mode].green;
+            document.documentElement.style.setProperty('--board-frame', frame);
+        }
+
+        function applyBoardTheme(name) {
+            const theme = BOARD_THEMES[name];
+            if (!theme) return;
+            const root = document.documentElement.style;
+            root.setProperty('--square-light', theme.light);
+            root.setProperty('--square-dark', theme.dark);
+            root.setProperty('--square-light-hover', theme.lightHover);
+            root.setProperty('--square-dark-hover', theme.darkHover);
+            boardTheme = name;
+            localStorage.setItem('boardTheme', name);
+            applyBoardFrame();
+            updateSwatchActive();
+        }
+
+        function updateSwatchActive() {
+            document.querySelectorAll('.swatch').forEach(el => {
+                el.classList.toggle('active', el.dataset.theme === boardTheme);
+            });
+        }
+
+        function buildThemePicker() {
+            const swatchContainer = document.getElementById('board-swatches');
+            swatchContainer.innerHTML = '';
+            for (const [name, theme] of Object.entries(BOARD_THEMES)) {
+                const swatch = document.createElement('div');
+                swatch.className = 'swatch';
+                swatch.dataset.theme = name;
+                swatch.title = name;
+                swatch.innerHTML = `
+                    <div class="swatch-cell" style="background:${theme.light}"></div>
+                    <div class="swatch-cell" style="background:${theme.dark}"></div>
+                    <div class="swatch-cell" style="background:${theme.dark}"></div>
+                    <div class="swatch-cell" style="background:${theme.light}"></div>
+                `;
+                swatch.addEventListener('click', () => applyBoardTheme(name));
+                swatchContainer.appendChild(swatch);
+            }
+            updateSwatchActive();
+        }
+
+        function toggleThemePanel() {
+            document.getElementById('theme-panel').classList.toggle('open');
+        }
+
+        document.addEventListener('click', (e) => {
+            const panel = document.getElementById('theme-panel');
+            const toggle = document.getElementById('appearance-btn');
+            if (!panel.classList.contains('open')) return;
+            if (panel.contains(e.target) || toggle.contains(e.target)) return;
+            panel.classList.remove('open');
+        });
+
+        // ── Game state ─────────────────────────────
         let currentGame = null;
         let votingStatus = null;
-        let myVote = null;           // The move I voted for
+        let myVote = null;
+        let mySurrender = false;
+        let selectedSquare = null;
         let checkWinnerInterval = null;
+        let resolvingWinner = false;
+
+        const PIECE_CODE = {
+            'k': 'K', 'q': 'Q', 'r': 'R',
+            'b': 'B', 'n': 'N', 'p': 'P'
+        };
 
         async function loadGame() {
             const response = await fetch('/game');
             const data = await response.json();
             currentGame = data.game;
             votingStatus = data.voting;
-            displayGame();
-            startWinnerChecker();
+            render();
+
+            if (votingStatus.phase === 'engine_thinking') {
+                resolvingWinner = true;
+                try { await runEngineMove(); }
+                finally { resolvingWinner = false; }
+            }
+
+            startTicker();
         }
 
-        function displayGame() {
+        function render() {
             if (!currentGame) return;
+            renderInfo();
+            renderBoard();
+            renderTally();
+            renderSurrender();
+        }
 
-            // Update info text
-            let infoText = 'Turn: ' + currentGame.turn;
+        function renderInfo() {
+            const infoEl = document.getElementById('info');
+            let infoText = capitalize(currentGame.turn) + ' to move';
+            infoEl.className = 'status-line';
+
             if (currentGame.is_checkmate) {
-                infoText += ' — CHECKMATE! ' + 
-                    (currentGame.turn === 'white' ? 'Black' : 'White') + ' wins!';
-            } else if (currentGame.is_check) {
-                infoText += ' — Check!';
+                infoText = 'Checkmate. ' +
+                    (currentGame.turn === 'white' ? 'Black' : 'White') + ' wins.';
+                infoEl.classList.add('checkmate');
             } else if (currentGame.is_game_over) {
-                infoText += ' — Game Over (draw)';
+                infoText = 'Draw.';
+                infoEl.classList.add('checkmate');
+            } else if (currentGame.is_check) {
+                infoText = capitalize(currentGame.turn) + ' is in check';
+                infoEl.classList.add('check');
             }
-            document.getElementById('info').textContent = infoText;
+            infoEl.textContent = infoText;
 
-            // Update board
-            document.getElementById('board').textContent = fenToText(currentGame.fen);
-
-            // Update timer
             if (votingStatus) {
-                document.getElementById('timer').textContent = 
-                    '⏱ ' + votingStatus.time_remaining + 's';
-                document.getElementById('vote-count').textContent = 
-                    votingStatus.votes_so_far + ' vote(s) cast';
-            }
+                const t = Math.max(0, votingStatus.time_remaining);
+                const total = votingStatus.voting_seconds || 15;
+                const timerEl = document.getElementById('timer');
+                const barEl = document.getElementById('timer-bar');
 
-            // Update tally
-            if (votingStatus && votingStatus.current_tally) {
-                let tallyText = 'Current tally: ';
-                const tally = votingStatus.current_tally;
-                const entries = Object.entries(tally);
-                if (entries.length === 0) {
-                    tallyText += 'no votes yet';
-                } else {
-                    // Sort by vote count, highest first
-                    entries.sort((a, b) => b[1] - a[1]);
-                    tallyText += entries.map(([move, count]) => 
-                        move + ' (' + count + ')'
-                    ).join(', ');
-                }
-                document.getElementById('tally').textContent = tallyText;
-            }
+                timerEl.textContent = t;
+                const urgent = t <= 5 && t > 0;
+                timerEl.classList.toggle('urgent', urgent);
+                barEl.classList.toggle('urgent', urgent);
+                barEl.style.width = ((t / total) * 100) + '%';
 
-            // Show move buttons
-            const movesDiv = document.getElementById('moves');
-            const votingEnded = votingStatus && votingStatus.voting_ended;
-            const gameOver = currentGame.is_game_over;
+                const vc = Math.max(1, votingStatus.viewer_count ?? 1);
+                document.getElementById('viewer-count').textContent = vc;
+                document.getElementById('viewer-label').textContent =
+                    vc === 1 ? 'player' : 'players';
 
-            if (!gameOver && !votingEnded && currentGame.legal_moves) {
-                let buttonsHtml = '';
-                for (const move of currentGame.legal_moves) {
-                    const isMyVote = (myVote === move);
-                    const className = isMyVote ? 'move-btn your-vote' : 'move-btn';
-                    buttonsHtml += 
-                        `<button class="${className}" onclick="voteMove('${move}')">${move}</button>`;
-                }
-                movesDiv.innerHTML = buttonsHtml;
-            } else if (votingEnded) {
-                movesDiv.innerHTML = '<em>Voting ended — waiting for results...</em>';
-            } else {
-                movesDiv.innerHTML = '<em>Game over</em>';
+                const n = votingStatus.votes_so_far;
+                document.getElementById('vote-count').textContent = n;
+                document.getElementById('vote-label').textContent =
+                    n === 1 ? 'vote' : 'votes';
             }
         }
 
-        function fenToText(fen) {
-            const pieceSymbols = {
-                'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
-                'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'
-            };
-            const boardPart = fen.split(' ')[0];
+        function renderSurrender() {
+            const btn = document.getElementById('surrender-btn');
+            const prog = document.getElementById('surrender-progress');
+
+            btn.classList.toggle('voted', mySurrender);
+            btn.textContent = mySurrender ? 'Withdraw' : 'Surrender';
+
+            if (votingStatus && votingStatus.surrender_votes > 0) {
+                prog.textContent =
+                    votingStatus.surrender_votes + '/' + votingStatus.surrender_needed;
+            } else {
+                prog.textContent = '';
+            }
+        }
+
+        function showThinking() {
+            document.getElementById('timer').style.display = 'none';
+            document.getElementById('timer-bar').style.visibility = 'hidden';
+            document.getElementById('timer-label').textContent = 'Black to move';
+            document.getElementById('thinking-indicator').classList.add('visible');
+        }
+
+        function hideThinking() {
+            document.getElementById('timer').style.display = '';
+            document.getElementById('timer-bar').style.visibility = '';
+            document.getElementById('timer-label').textContent = 'Voting closes';
+            document.getElementById('thinking-indicator').classList.remove('visible');
+        }
+
+        function showGameOver(seconds) {
+            document.getElementById('timer').style.display = 'none';
+            document.getElementById('timer-bar').style.visibility = 'hidden';
+            document.getElementById('timer-label').textContent = 'Final position';
+            document.getElementById('game-over-indicator').classList.add('visible');
+            document.getElementById('game-over-countdown').textContent = seconds;
+        }
+
+        function hideGameOver() {
+            document.getElementById('timer').style.display = '';
+            document.getElementById('timer-bar').style.visibility = '';
+            document.getElementById('timer-label').textContent = 'Voting closes';
+            document.getElementById('game-over-indicator').classList.remove('visible');
+        }
+
+        function renderTally() {
+            const tallyEl = document.getElementById('tally');
+            const tally = votingStatus && votingStatus.tally;
+
+            if (!tally || tally.length === 0) {
+                tallyEl.innerHTML = '<div class="empty-tally">No votes yet</div>';
+                return;
+            }
+
+            const max = tally[0].count;
+
+            tallyEl.innerHTML = tally.map(row => {
+                const pct = (row.count / max) * 100;
+                const mine = (myVote === row.uci) ? ' mine' : '';
+                return `
+                    <div class="tally-row${mine}">
+                        <span class="tally-move">${row.san}</span>
+                        <div class="tally-bar">
+                            <div class="tally-bar-fill" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="tally-count">${row.count}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            const boardPart = currentGame.fen.split(' ')[0];
             const rows = boardPart.split('/');
-            let text = '  a b c d e f g h\n';
-            let rowNum = 8;
-            for (const row of rows) {
-                text += rowNum + ' ';
-                for (const char of row) {
-                    if (char >= '1' && char <= '8') {
-                        text += '· '.repeat(parseInt(char));
+
+            for (let rowIndex = 0; rowIndex < 8; rowIndex++) {
+                const rank = 8 - rowIndex;
+                const row = rows[rowIndex];
+                let file = 0;
+
+                for (const ch of row) {
+                    if (ch >= '1' && ch <= '8') {
+                        const empty = parseInt(ch);
+                        for (let i = 0; i < empty; i++) {
+                            boardEl.appendChild(createSquare(file, rank, null));
+                            file++;
+                        }
                     } else {
-                        text += (pieceSymbols[char] || char) + ' ';
+                        boardEl.appendChild(createSquare(file, rank, ch));
+                        file++;
                     }
                 }
-                text += rowNum + '\n';
-                rowNum--;
             }
-            text += '  a b c d e f g h';
-            return text;
+        }
+
+        function createSquare(file, rank, pieceChar) {
+            const square = document.createElement('div');
+            const squareName = fileToLetter(file) + rank;
+
+            const isLight = (file + rank) % 2 === 0;
+            square.className = 'square ' + (isLight ? 'light' : 'dark');
+
+            if (selectedSquare === squareName) {
+                square.classList.add('selected');
+            }
+
+            if (pieceChar) {
+                const isWhite = pieceChar === pieceChar.toUpperCase();
+                const colorCode = isWhite ? 'w' : 'b';
+                const pieceCode = PIECE_CODE[pieceChar.toLowerCase()];
+
+                const img = document.createElement('img');
+                img.className = 'piece';
+                img.src = '/static/pieces/' + colorCode + pieceCode + '.svg';
+                img.alt = colorCode + pieceCode;
+                img.draggable = false;
+                square.appendChild(img);
+                square.classList.add('has-piece');
+            }
+
+            if (selectedSquare && currentGame.legal_moves &&
+                currentGame.legal_moves.includes(selectedSquare + squareName)) {
+                square.classList.add('legal-target');
+            }
+
+            square.addEventListener('click', () => onSquareClick(squareName));
+
+            return square;
+        }
+
+        function onSquareClick(squareName) {
+            if (!currentGame || currentGame.is_game_over) return;
+            if (votingStatus && votingStatus.voting_open === false) return;
+            if (votingStatus && votingStatus.phase !== 'voting') return;
+
+            if (selectedSquare) {
+                const move = selectedSquare + squareName;
+                if (currentGame.legal_moves.includes(move)) {
+                    voteMove(move);
+                    selectedSquare = null;
+                    return;
+                }
+            }
+
+            const hasMoves = currentGame.legal_moves.some(m => m.startsWith(squareName));
+            selectedSquare = hasMoves ? squareName : null;
+            renderBoard();
         }
 
         async function voteMove(move) {
-            const response = await fetch('/vote?move=' + move, {
-                method: 'POST'
-            });
+            const response = await fetch('/vote?move=' + move, { method: 'POST' });
             const data = await response.json();
 
+            const resultEl = document.getElementById('result');
             if (data.success) {
                 myVote = move;
                 votingStatus = data.voting;
-                document.getElementById('result').textContent = 
-                    '✓ You voted for ' + move;
-                displayGame();
+                resultEl.className = 'win';
+                resultEl.textContent = 'You voted ' + data.move_san;
+                render();
             } else {
-                document.getElementById('result').textContent = 
-                    '✗ ' + data.message;
+                resultEl.className = 'error';
+                resultEl.textContent = data.message;
             }
         }
 
-        function startWinnerChecker() {
-            // Clear any existing interval
-            if (checkWinnerInterval) {
-                clearInterval(checkWinnerInterval);
-            }
+        async function toggleSurrender() {
+            mySurrender = !mySurrender;
 
-            // Check every second if voting is over
-            checkWinnerInterval = setInterval(async () => {
-                // If we already know voting ended, check for winner
-                if (votingStatus && votingStatus.voting_ended) {
-                    await checkWinner();
-                    return;
-                }
-
-                // Otherwise, refresh voting status to update the timer
-                const response = await fetch('/voting-status');
-                votingStatus = await response.json();
-                displayGame();
-            }, 1000);
-        }
-
-        async function checkWinner() {
-            const response = await fetch('/check-winner', {
-                method: 'POST'
-            });
+            const url = '/surrender?active=' + (mySurrender ? 'true' : 'false');
+            const response = await fetch(url, { method: 'POST' });
             const data = await response.json();
 
-            if (!data.voting_active && data.winner) {
-                // Voting ended, we have a result
-                const w = data.winner;
-                let resultText = '🏆 Winning move: ' + w.winner + 
-                    ' with ' + w.total_votes + ' total vote(s)';
-                if (w.tied) {
-                    resultText += ' (tiebreak — randomly selected)';
-                }
-                if (w.winner === null) {
-                    resultText = '⚠ No votes were cast — round skipped';
-                }
-                document.getElementById('result').textContent = resultText;
+            currentGame = data.game;
+            votingStatus = data.voting;
 
-                // Update game state and reset for next round
+            if (data.reset) {
+                mySurrender = false;
+                myVote = null;
+                selectedSquare = null;
+                const resultEl = document.getElementById('result');
+                resultEl.className = '';
+                resultEl.textContent = 'Game reset by surrender vote.';
+            }
+
+            render();
+        }
+
+        function startTicker() {
+            if (checkWinnerInterval) clearInterval(checkWinnerInterval);
+            checkWinnerInterval = setInterval(tick, 1000);
+        }
+
+        async function tick() {
+            if (resolvingWinner) return;
+
+            if (votingStatus && votingStatus.phase === 'engine_thinking') {
+                resolvingWinner = true;
+                try { await runEngineMove(); }
+                finally { resolvingWinner = false; }
+                return;
+            }
+
+            const response = await fetch('/voting-status');
+            votingStatus = await response.json();
+
+            // Handle game-over phase UI.
+            if (votingStatus.phase === 'game_over') {
+                currentGame = await fetchGameState();
+                renderInfo();
+                renderBoard();
+                renderTally();
+                renderSurrender();
+                showGameOver(votingStatus.game_over_seconds || 0);
+                return;
+            } else {
+                hideGameOver();
+            }
+
+            renderInfo();
+            renderBoard();
+            renderTally();
+            renderSurrender();
+
+            if (votingStatus.voting_open === false && votingStatus.phase === 'voting') {
+                resolvingWinner = true;
+                try { await resolveRound(); }
+                finally { resolvingWinner = false; }
+            }
+        }
+
+        async function fetchGameState() {
+            const r = await fetch('/game');
+            const d = await r.json();
+            return d.game;
+        }
+
+        async function resolveRound() {
+            const resp = await fetch('/check-winner', { method: 'POST' });
+            const data = await resp.json();
+
+            if (data.voting_active) return;
+
+            currentGame = data.game;
+            votingStatus = data.voting;
+
+            if (data.winner) displayWinnerLine(data.winner);
+            render();
+
+            if (votingStatus.phase === 'engine_thinking') {
+                await runEngineMove();
+            } else if (votingStatus.phase === 'game_over') {
+                showGameOver(votingStatus.game_over_seconds || 0);
+            }
+        }
+
+        function displayWinnerLine(w) {
+            const resultEl = document.getElementById('result');
+            let text;
+            if (w.winner === null) {
+                text = 'No votes. Random move: ' + w.winner_san;
+            } else {
+                text = 'Winning move ' + w.winner_san +
+                    ' (' + w.total_votes + ' vote' +
+                    (w.total_votes === 1 ? '' : 's') + ')';
+                if (w.tied) text += ' — tiebreak';
+            }
+            resultEl.className = 'win';
+            resultEl.textContent = text;
+            resultEl.dataset.winnerText = text;
+        }
+
+        async function runEngineMove() {
+            showThinking();
+            try {
+                const resp = await fetch('/engine-move', { method: 'POST' });
+                const data = await resp.json();
+
                 currentGame = data.game;
                 votingStatus = data.voting;
                 myVote = null;
-                displayGame();
+                selectedSquare = null;
+
+                if (data.engine_move_san) {
+                    const resultEl = document.getElementById('result');
+                    const base = resultEl.dataset.winnerText || resultEl.textContent;
+                    resultEl.textContent = base + ' · Stockfish: ' + data.engine_move_san;
+                }
+
+                render();
+
+                if (votingStatus.phase === 'game_over') {
+                    showGameOver(votingStatus.game_over_seconds || 0);
+                }
+            } finally {
+                hideThinking();
             }
         }
 
-        async function resetGame() {
-            const response = await fetch('/reset', {
-                method: 'POST'
-            });
-            const data = await response.json();
-            currentGame = data.game;
-            votingStatus = data.voting;
-            myVote = null;
-            displayGame();
-            document.getElementById('result').textContent = 'Game reset';
+        function fileToLetter(file) {
+            return String.fromCharCode(97 + file);
         }
 
-        // Load everything when the page opens
+        function capitalize(s) {
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        }
+
+        pickRandomQuote();
+        buildThemePicker();
+        applyBoardTheme(boardTheme);
+        applyMode(mode);
         loadGame();
     </script>
 </body>

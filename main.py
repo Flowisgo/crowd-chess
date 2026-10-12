@@ -1,102 +1,289 @@
 # main.py
-# handles http requests and responses and defines routes
+# Job: "I define routes and handle HTTP requests/responses"
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from game import ChessGame
 from voting import VoteManager
+import os
+import time
+import threading
 
 app = FastAPI()
 
-# files from 'static' folder
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# creates shared game instance for all users to play together
-game = ChessGame()
-vote_manager = VoteManager(voting_seconds = 30)
+STOCKFISH_PATH = os.environ.get(
+    "STOCKFISH_PATH",
+    r"C:\Users\User\stockfish-windows-x86-64-universal\stockfish\stockfish-windows-x86-64-universal.exe"
+)
+
+game = ChessGame(engine_path=STOCKFISH_PATH)
+vote_manager = VoteManager(voting_seconds=15, min_seconds=5)
+
+_round_phase = "voting"
+_game_over_at = 0.0
+GAME_OVER_DELAY = 8  # seconds to show final position before auto-reset
+round_lock = threading.Lock()
+
+# ── Viewer tracking ────────────────────────────────
+_viewers = {}
+VIEWER_WINDOW = 15
+
+# ── Surrender votes ────────────────────────────────
+_surrender_votes = set()
+
+
+def _touch_viewer(ip):
+    _viewers[ip] = time.time()
+
+
+def _viewer_count():
+    now = time.time()
+    stale = [ip for ip, t in _viewers.items() if now - t > VIEWER_WINDOW]
+    for ip in stale:
+        del _viewers[ip]
+    return len(_viewers)
+
+
+def _prune_surrender_votes():
+    global _surrender_votes
+    _surrender_votes = {ip for ip in _surrender_votes if ip in _viewers}
+
+
+def _surrender_needed():
+    vc = max(1, _viewer_count())
+    return vc // 2 + 1
+
+
+def _maybe_finish_game_over():
+    """Auto-reset the game a few seconds after it ends."""
+    global _round_phase
+    if _round_phase == "game_over" and time.time() - _game_over_at >= GAME_OVER_DELAY:
+        game.reset()
+        vote_manager.reset()
+        _surrender_votes.clear()
+        _round_phase = "voting"
+
 
 def get_voter_id(request: Request) -> str:
-    """
-    Gets a unique identifier for the voter based on their IP address.
-    Uses client's IP address
-    """
-    # request.client.host contains IP address of person connecting
     return request.client.host
+
+
+def voting_status_with_san():
+    _maybe_finish_game_over()
+
+    vote_manager.set_viewer_count(_viewer_count())
+    status = vote_manager.get_status()
+    raw_tally = status.pop("current_tally", {})
+    status["tally"] = [
+        {"uci": uci, "san": game.get_san(uci), "count": count}
+        for uci, count in sorted(raw_tally.items(), key=lambda x: -x[1])
+    ]
+    status["viewer_count"] = _viewer_count()
+    status["phase"] = _round_phase
+
+    if _round_phase == "game_over":
+        remaining = max(0, GAME_OVER_DELAY - (time.time() - _game_over_at))
+        status["game_over_seconds"] = int(remaining + 0.999)  # ceil
+    else:
+        status["game_over_seconds"] = None
+
+    _prune_surrender_votes()
+    status["surrender_votes"] = len(_surrender_votes)
+    status["surrender_needed"] = _surrender_needed()
+    return status
+
 
 @app.get("/")
 def home():
-    """ Serve the main HTML page. """
     return FileResponse("static/index.html")
 
+
 @app.get("/game")
-def get_game():
-    """ Returns current game state. """
+def get_game(request: Request):
+    _touch_viewer(request.client.host)
     return {
         "game": game.get_state(),
-        "voting": vote_manager.get_status()
+        "voting": voting_status_with_san()
     }
+
+
 @app.post("/vote")
 def submit_vote(move: str, request: Request):
-    """ Receives a vote for a move. Move should be in UCI format.
-    Each IP address gets one vote, but can be changed during voting window"""
+    _touch_viewer(request.client.host)
+    vote_manager.set_viewer_count(_viewer_count())
+
+    if _round_phase != "voting":
+        return {
+            "success": False,
+            "message": "Round in progress",
+            "voting": voting_status_with_san()
+        }
+
+    if not game.is_legal(move):
+        return {
+            "success": False,
+            "message": "Illegal move",
+            "voting": voting_status_with_san()
+        }
+
     voter_id = get_voter_id(request)
-    # record the vode
     recorded = vote_manager.record_vote(voter_id, move)
+
     if not recorded:
         return {
             "success": False,
             "message": "Voting has ended",
-            "game": game.get_state(),
-            "voting": vote_manager.get_status()
+            "voting": voting_status_with_san()
         }
-    
+
+    san = game.get_san(move)
     return {
         "success": True,
-        "message": f"Voted for {move}",
-        "voting": vote_manager.get_status()
+        "message": f"Voted for {san}",
+        "move_san": san,
+        "voting": voting_status_with_san()
     }
 
-@app.get("/voting_status")
-def voting_status():
-    """ Get current voting status without game state"""
-    return vote_manager.get_status()
+
+@app.get("/voting-status")
+def voting_status(request: Request):
+    _touch_viewer(request.client.host)
+    return voting_status_with_san()
+
 
 @app.post("/check-winner")
-def check_winner():
-    """
-    Checks if voting is over and winner should be declared.
-    If voting is over and there is a winner, move is played automatically
-    """
-    winner_data = vote_manager.get_winner()
+def check_winner(request: Request):
+    global _round_phase
+    _touch_viewer(request.client.host)
+    vote_manager.set_viewer_count(_viewer_count())
 
-    if winner_data is None:
+    with round_lock:
+        if _round_phase != "voting":
+            return {
+                "phase": _round_phase,
+                "game": game.get_state(),
+                "voting": voting_status_with_san()
+            }
+
+        if vote_manager.is_voting_open():
+            return {
+                "phase": "voting",
+                "voting_active": True,
+                "voting": voting_status_with_san()
+            }
+
+        winner_data = vote_manager.get_winner()
+
+        # Capture SAN BEFORE the board moves, then clear the vote manager
+        # so the returned status has no stale UCI tally in it.
+        winning_uci = winner_data["winner"] if winner_data else None
+        winning_san = game.get_san(winning_uci) if winning_uci else None
+
+        vote_manager.reset()
+
+        if winning_uci:
+            game.make_move(winning_uci)
+        else:
+            game.make_random_move()
+
+        _round_phase = "engine_thinking"
+
         return {
-            "voting_active": True,
-            "voting": vote_manager.get_status()
+            "phase": "engine_thinking",
+            "voting_active": False,
+            "winner": {
+                **(winner_data or {"winner": None, "total_votes": 0, "tied": False}),
+                "winner_san": winning_san
+            },
+            "game": game.get_state(),
+            "voting": voting_status_with_san()
         }
 
-    # Voting is over, play winning move
-    if winner_data["winner"] is not None:
-        game.make_move(winner_data["winner"])
+@app.post("/engine-move")
+def engine_move(request: Request):
+    global _round_phase, _game_over_at
+    _touch_viewer(request.client.host)
 
-    # Reset voting for the next round
-    vote_manager.reset() 
+    with round_lock:
+        if _round_phase != "engine_thinking":
+            return {
+                "phase": _round_phase,
+                "game": game.get_state(),
+                "voting": voting_status_with_san()
+            }
+
+        engine_uci, engine_san = game.make_engine_move()
+
+        vote_manager.reset()
+
+        # If the game is now over (checkmate, stalemate, etc.), pause before reset.
+        if game.get_state()["is_game_over"]:
+            _round_phase = "game_over"
+            _game_over_at = time.time()
+        else:
+            _round_phase = "voting"
+
+        return {
+            "phase": _round_phase,
+            "engine_move": engine_uci,
+            "engine_move_san": engine_san,
+            "game": game.get_state(),
+            "voting": voting_status_with_san()
+        }
+
+
+@app.post("/surrender")
+def surrender(request: Request, active: bool = True):
+    global _round_phase
+    _touch_viewer(request.client.host)
+
+    ip = request.client.host
+    if active:
+        _surrender_votes.add(ip)
+    else:
+        _surrender_votes.discard(ip)
+
+    _prune_surrender_votes()
+    needed = _surrender_needed()
+
+    if active and len(_surrender_votes) >= needed:
+        with round_lock:
+            game.reset()
+            vote_manager.reset()
+            _surrender_votes.clear()
+            _round_phase = "voting"
+
+        return {
+            "reset": True,
+            "message": "Game reset by surrender vote",
+            "game": game.get_state(),
+            "voting": voting_status_with_san()
+        }
 
     return {
-        "voting_active": False,
-        "winner": winner_data,
+        "reset": False,
+        "message": "Surrender vote recorded",
         "game": game.get_state(),
-        "voting": vote_manager.get_status()
+        "voting": voting_status_with_san()
     }
 
+
 @app.post("/reset")
-def reset_game():
-    """ Resets game to starting position and voting for next move """
-    game.reset()
-    vote_manager.reset()
+def reset_game(request: Request):
+    global _round_phase
+    _touch_viewer(request.client.host)
+
+    with round_lock:
+        game.reset()
+        vote_manager.reset()
+        _round_phase = "voting"
+        _surrender_votes.clear()
+
     return {
         "message": "Game reset",
         "game": game.get_state(),
-        "voting": vote_manager.get_status()
+        "voting": voting_status_with_san()
     }
