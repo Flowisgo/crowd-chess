@@ -187,7 +187,7 @@ def check_winner(request: Request):
         if winning_uci:
             game.make_move(winning_uci)
         else:
-            game.make_random_move()
+            winning_san = game.make_random_move()
 
         _round_phase = "engine_thinking"
 

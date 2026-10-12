@@ -752,6 +752,7 @@
         let selectedSquare = null;
         let checkWinnerInterval = null;
         let resolvingWinner = false;
+        let previousPhase = null;
 
         const PIECE_CODE = {
             'k': 'K', 'q': 'Q', 'r': 'R',
@@ -1032,9 +1033,14 @@
             const response = await fetch('/voting-status');
             votingStatus = await response.json();
 
-            // Handle game-over phase UI.
-            if (votingStatus.phase === 'game_over') {
+            // Whenever the phase changes (e.g. game_over → voting), pull a fresh
+            // board state so we don't render a stale position.
+            if (previousPhase !== null && previousPhase !== votingStatus.phase) {
                 currentGame = await fetchGameState();
+            }
+            previousPhase = votingStatus.phase;
+
+            if (votingStatus.phase === 'game_over') {
                 renderInfo();
                 renderBoard();
                 renderTally();
